@@ -1,0 +1,12 @@
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+
+/Никончук_11b_11var.docx
+/*.docx
+/TestImages/
+*.zip
+/_extract.txt
+/report_assets/
+/docs/

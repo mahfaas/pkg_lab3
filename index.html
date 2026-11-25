@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Обработка цифровых изображений — Лабораторная работа 3 (вариант 4)</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+  <h1>Обработка цифровых изображений</h1>
+  <div class="subtitle">Лабораторная работа 3 · вариант 4 — сегментация (точки, линии, перепады яркости) + построение и эквализация гистограммы, линейное контрастирование</div>
+</header>
+
+<nav id="tabs">
+  <button data-tab="seg" class="active">Сегментация</button>
+  <button data-tab="hist">Гистограммы и контраст</button>
+  <button data-tab="tests">База тестовых изображений</button>
+  <button data-tab="docs">Документация</button>
+</nav>
+
+<main>
+  <aside id="sidebar">
+    <section class="panel">
+      <h2>Исходное изображение</h2>
+      <label class="file-label">Загрузить файл<input type="file" id="fileInput" accept="image/*" hidden></label>
+      <div class="img-meta" id="imgMeta">Изображение не загружено</div>
+      <div class="hint">Также файл можно перетащить на левый холст</div>
+    </section>
+
+    <section class="panel" id="segPanel">
+      <h2>Параметры сегментации</h2>
+      <label class="field">Метод
+        <select id="segMethod">
+          <option value="point">Обнаружение точек (лапласиан)</option>
+          <option value="line">Обнаружение линий (4 маски)</option>
+          <option value="roberts">Перепады: оператор Робертса</option>
+          <option value="prewitt">Перепады: оператор Прюитта</option>
+          <option value="sobel" selected>Перепады: оператор Соболя</option>
+          <option value="canny">Перепады: алгоритм Кэнни</option>
+        </select>
+      </label>
+      <label class="field">Обработка краёв
+        <select id="edgeMode">
+          <option value="clamp">Дублирование (Clamp)</option>
+          <option value="mirror">Зеркальное отражение (Reflect)</option>
+        </select>
+      </label>
+      <div class="ctrl" id="thresholdCtrl">
+        <label>Порог бинаризации T: <output id="thrOut">200</output></label>
+        <input type="range" id="segThreshold" min="0" max="2040" value="200">
+      </div>
+      <div class="ctrl" id="cannyCtrl" hidden>
+        <label>σ сглаживания Гаусса: <output id="sigmaOut">1.4</output></label>
+        <input type="range" id="cannySigma" min="4" max="40" value="14">
+        <label>Нижний порог: <output id="lowOut">60</output></label>
+        <input type="range" id="cannyLow" min="0" max="1020" value="60">
+        <label>Верхний порог: <output id="highOut">180</output></label>
+        <input type="range" id="cannyHigh" min="0" max="1020" value="180">
+        <label class="check"><input type="checkbox" id="cannySubpix" checked> Субпиксельное подавление немаксимумов</label>
+      </div>
+      <label class="check"><input type="checkbox" id="autoNormalize" checked> Нормализация карт яркости</label>
+      <button id="segApply" class="primary">Применить</button>
+    </section>
+
+    <section class="panel" id="histPanel" hidden>
+      <h2>Параметры контрастирования</h2>
+      <label class="field">Режим
+        <select id="histMode">
+          <option value="linear">Линейное контрастирование</option>
+          <option value="eqrgb">Эквализация гистограммы (RGB)</option>
+          <option value="eqhsv">Эквализация гистограммы (V в HSV)</option>
+          <option value="clahe">CLAHE — адаптивная эквализация</option>
+        </select>
+      </label>
+      <div class="ctrl" id="linearCtrl">
+        <label class="check"><input type="checkbox" id="linAuto" checked> Авто (по min–max изображения)</label>
+        <label>a: <output id="aOut">0</output></label>
+        <input type="range" id="linA" min="0" max="254" value="0">
+        <label>b: <output id="bOut">255</output></label>
+        <input type="range" id="linB" min="1" max="255" value="255">
+      </div>
+      <div class="ctrl" id="claheCtrl" hidden>
+        <label class="field">Сетка областей
+          <select id="claheTiles">
+            <option value="4">4 × 4</option>
+            <option value="8" selected>8 × 8</option>
+            <option value="16">16 × 16</option>
+          </select>
+        </label>
+        <label>Предел контраста: <output id="clipOut">3.0</output></label>
+        <input type="range" id="claheClip" min="10" max="80" value="30">
+      </div>
+      <button id="histApply" class="primary">Применить</button>
+    </section>
+  </aside>
+
+  <section id="workspace">
+    <div id="progressWrap" hidden><div id="progressBar"></div></div>
+    <div id="status">Готово к работе</div>
+    <div class="viewrow" id="viewRow" hidden>
+      <label>Отображаемый результат:
+        <select id="viewSelect"></select>
+      </label>
+    </div>
+    <div class="canvases">
+      <figure><figcaption>Оригинал</figcaption><div class="canvas-box"><canvas id="srcCanvas" width="512" height="512"></canvas></div></figure>
+      <figure><figcaption id="resultCaption">Результат</figcaption><div class="canvas-box"><canvas id="dstCanvas" width="512" height="512"></canvas></div></figure>
+    </div>
+    <div class="canvases" id="histRow" hidden>
+      <figure><figcaption>Гистограмма до</figcaption><canvas id="histBefore" width="512" height="220"></canvas></figure>
+      <figure><figcaption>Гистограмма после</figcaption><canvas id="histAfter" width="512" height="220"></canvas></figure>
+    </div>
+  </section>
+
+  <section id="testsTab" hidden>
+    <h2>База тестовых изображений</h2>
+    <p class="hint">Все изображения генерируются программно по запросу и также доступны для загрузки в формате PNG. Их можно загрузить в рабочую область и обработать любым методом.</p>
+    <div id="testGrid"></div>
+    <div class="test-actions">
+      <button id="genAll" class="primary">Сгенерировать всю базу</button>
+      <button id="downloadAll">Скачать все PNG</button>
+      <span class="hint">Браузер может запросить разрешение на скачивание нескольких файлов.</span>
+    </div>
+  </section>
+
+  <section id="docsTab" hidden>
+    <article>
+      <h2>Краткая документация</h2>
+      <p>Полная сопроводительная документация и аналитический отчёт находятся в репозитории: <code>README.md</code> и <code>docs/REPORT.md</code>.</p>
+
+      <h3>Архитектура (три слоя)</h3>
+      <ul>
+        <li><b>Presentation Layer</b> — <code>js/main.js</code>, <code>index.html</code>, <code>css/style.css</code>: отображение «до/после», гистограммы, прогресс, слайдеры.</li>
+        <li><b>Memory &amp; Pixel Access Layer</b> — <code>js/core/pixel.js</code>: обёртка над байтами изображения (Uint8ClampedArray), обработка краёв (Clamp / Reflect), преобразования RGB↔HSV.</li>
+        <li><b>Processing Layer</b> — <code>js/algo/*.js</code>: чистые функции-алгоритмы, не знающие об интерфейсе.</li>
+      </ul>
+
+      <h3>Обнаружение точек</h3>
+      <p>Лапласиан 3×3: маска −1 в 8 соседях и 8 в центре. Изолированная точка даёт отклик |R| = |8f₀ − Σf<sub>сосед</sub>|, который заметно превышает фон. Порог T бинаризует отклик.</p>
+
+      <h3>Обнаружение линий</h3>
+      <p>Четыре маски лапласиана, ориентированные на 0°, 45°, 90°, 135°. Отклик — максимум по четырём свёрткам; номер маски-победителя задаёт цвет обнаруженной линии на карте.</p>
+
+      <h3>Перепады яркости: Соболь/Прюитт/Робертс</h3>
+      <p>Вычисляются частные производные g<sub>x</sub>, g<sub>y</sub> свёрткой с масками; модуль градиента M = √(g<sub>x</sub>² + g<sub>y</sub>²), угол направления θ = atan2(g<sub>y</sub>, g<sub>x</sub>). Карта направлений кодирует угол цветовым оттенком (HSV: hue = θ), а яркость — модулем градиента.</p>
+
+      <h3>Алгоритм Кэнни</h3>
+      <p>1) разделяемая гауссова свёртка; 2) градиенты Соболя; 3) подавление немаксимумов вдоль направления градиента (опционально — субпиксельное, с билинейной выборкой); 4) двойная пороговая обработка и гистерезис (рост связных компонент от сильных границ через слабые).</p>
+
+      <h3>Гистограммы и контраст</h3>
+      <p>Линейное контрастирование: g′ = (g − a)·255/(b − a). Эквализация: g′ = round((CDF(g) − CDF<sub>min</sub>)/(N − CDF<sub>min</sub>)·255). Для цветных изображений реализованы два подхода: поканальная эквализация RGB и эквализация только компоненты V в HSV. CLAHE — эквализация по сетке областей с ограничением гистограммы (clip limit) и билинейной интерполяцией отображений соседних областей.</p>
+
+      <h3>Оптимизации</h3>
+      <ul>
+        <li>Разделяемые свёртки: O(K²·N²) → O(K·N²) (два одномерных прохода).</li>
+        <li>Многопоточность: пул Web Workers, изображение делится на горизонтальные полосы.</li>
+        <li>Прямой доступ к памяти: только Uint8ClampedArray/Float32Array и вложенные циклы, никаких высокоуровневых функций обработки.</li>
+      </ul>
+    </article>
+  </section>
+</main>
+
+<footer>Лабораторная работа 3 · ФаМИ CS · вариант 4 · <span id="modeInfo">режим вычислений: —</span></footer>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
